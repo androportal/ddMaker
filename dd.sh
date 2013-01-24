@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Known issues: If sudo password is already used within 15 mins and user tries again the image get dd'ed even if he cancels 
-# password dialog
-
 sizeofDiskBeforeSDCARD=0
 sizeofDiskAfterSDCARD=0
 sdcardPath=''
@@ -30,10 +27,9 @@ if [ $? -eq 1 ]
 then
     exit 0
 else
-    # Might want to give a waiting message box
+    zenity --info --title "ddMaker info" --timeout 3 --text "Waiting for device..."
     sleep 3
- 
- sizeofDiskAfterSDCARD=$(df -h --total | tail -n 1 | awk '{print $2}' | cut -c -3)
+    sizeofDiskAfterSDCARD=$(df -h --total | tail -n 1 | awk '{print $2}' | cut -c -3)
 fi
 }
 
@@ -60,17 +56,21 @@ fi
 function ddWrite() {
 if [ $? -eq 0 ]
 then
+    
     sdcardPath=$(ls /dev/sd* | tail -n 1 | cut -c -8)
     ddfilePath=$(zenity --title "Select you image file to be dd'ed on sdcard " --file-selection)
     
     sudo -K
     while true
         do
-    pass=$(zenity --title "Enter your password to continue" --password)
+        pass=$(zenity --title "Enter your password to continue" --password)
+        # Return code is 1 when user choose 'cancel', if select 'Yes' return code is 0
         if [ $? -eq 1 ]
         then
             exit 0
         else
+            umount $sdcardPath[1..9]
+            sleep 1
             echo $pass | sudo -S  dd if=$ddfilePath of=$sdcardPath bs=4096 
             if [ $? -eq 0 ]
                 then
@@ -89,6 +89,9 @@ fi
 function progressBar() {
 
 #Yes to come
+#kill -USR1 `pgrep ^dd$` |  awk '{print $1}' 
+zenity --progressbar
+# cat tmp | awk '{print $3}'| tail -n 2 -c -4 | head -1
 
 }
 
