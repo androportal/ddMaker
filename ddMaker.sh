@@ -79,7 +79,10 @@ if [ $? -eq 1 ]
 then
     exit 0
 else
-    sizeofDiskBeforeSDCARD=$(df --total | tail -n 1 | awk '{print $2}')
+    # sudo is not required in df, included due to permission issue 
+    # with /root/.gvfs
+    sizeofDiskBeforeSDCARD=$(echo $password | sudo -S df --total\
+                            | tail -n 1 | awk '{print $2}')
 fi
 }
 
@@ -90,7 +93,8 @@ fi
 function insertSDCARD() {
 # The dialog box below will ask user to insert sdcard
 zenity --question --title "ddMaker   Step 2 of 4" \
-       --text "Now please insert your sdcard back, then press YES to continue"
+       --text "Now please insert your drive(sdcard) back,\
+then press YES to continue"
 # Checking the return code of zenity dialog 
 if [ $? -eq 1 ] 
 then
@@ -99,7 +103,10 @@ else
     zenity --info --title "ddMaker info"\
            --timeout 3\
            --text "Waiting for device..."
-    sizeofDiskAfterSDCARD=$(df --total | tail -n 1 | awk '{print $2}')
+    # sudo is not required in df, included due to permission issue 
+    # with /root/.gvfs
+    sizeofDiskAfterSDCARD=$(echo $password | sudo -S df --total\
+                          | tail -n 1 | awk '{print $2}')
 fi
 }
 
@@ -145,6 +152,11 @@ function ddWrite() {
 sdcardPath=$(ls /dev/sd* | tail -n 1 | cut -c -8)
 # This will return the absolute path of the file you want dd
 ddfilePath=$(zenity --title "Select your file" --file-selection)
+# If file selection is cancelled, then quit application
+if [ $? -eq 1 ]
+then 
+    exit 0
+fi    
 # Unmounting newly connected device(s), assuming max 9 partitions
 umount $sdcardPath[1-9] &> /dev/null
 sleep 1

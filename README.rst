@@ -21,7 +21,7 @@ How to use
 
 Download the bash script ``dd.sh`` on your GNU/Linux machine, open a terminal and run ::
 
-    bash dd.sh        
+    bash ddMaker.sh        
 
 read and follow all onscreen instructions strictly
 
