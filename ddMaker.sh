@@ -20,7 +20,8 @@
 # install it using your package manager. 
 
 # This application is initially written for aakash project to help students
-# to create their own bootable GNU/Linux image
+# to create their own bootable GNU/Linux sdcard.
+
 # For more information about GNU/Linux on Aakash, please visit 
 # https://github.com/androportal/linux-on-aakash
 
@@ -34,7 +35,7 @@ password=''
 sizeSDCARD=0
 
 
-##############################################################################
+###############################################################################
 
 
 function sudoAccess() {
@@ -79,10 +80,9 @@ if [ $? -eq 1 ]
 then
     exit 0
 else
-    # sudo is not required in df, included due to permission issue 
-    # with /root/.gvfs
-    sizeofDiskBeforeSDCARD=$(echo $password | sudo -S df --total\
-                            | tail -n 1 | awk '{print $2}')
+    # This will return size of disk without our media
+    sizeofDiskBeforeSDCARD=$(echo $password | sudo -S sfdisk -s\
+                           | tail -1 | awk '{print $2}')
 fi
 }
 
@@ -95,18 +95,17 @@ function insertSDCARD() {
 zenity --question --title "ddMaker   Step 2 of 4" \
        --text "Now please insert your drive(sdcard) back,\
 then press YES to continue"
-# Checking the return code of zenity dialog 
-if [ $? -eq 1 ] 
+# Checking the button selected in zenity dialog
+if [ $? -eq 1 ]    
 then
     exit 0
 else
     zenity --info --title "ddMaker info"\
-           --timeout 3\
+           --timeout 4\
            --text "Waiting for device..."
-    # sudo is not required in df, included due to permission issue 
-    # with /root/.gvfs
-    sizeofDiskAfterSDCARD=$(echo $password | sudo -S df --total\
-                          | tail -n 1 | awk '{print $2}')
+    # sfdisk prints the total disk space in KB
+    sizeofDiskAfterSDCARD=$(echo $password | sudo -S sfdisk -s\
+                          | tail -1 | awk '{print $2}')
 fi
 }
 
@@ -115,27 +114,24 @@ fi
 
 
 function SizeofSDCARD() {
-# This is to double check that last device listed in /dev/sd* is indeed our
-# device (just to eliminate any confusion)
 # verifying new device by finding difference in size 
 # before and after insertion 
-sizeSDCARD=$(($sizeofDiskAfterSDCARD - $sizeofDiskBeforeSDCARD))
-# Both sizes are in bytes, so converting them into GB first
-sizeSDCARD=$(echo "scale=2;$sizeSDCARD/1048576" | bc)
-# Converting sizeSDCARD to integer to use in conditional statement, 
-# so if any card is detected it will go inside 'if' statement
+sizeSDCARDKbytes=$(($sizeofDiskAfterSDCARD - $sizeofDiskBeforeSDCARD))
+# Converting into GB first
+sizeSDCARD=$(echo "scale=2;$sizeSDCARDKbytes/1048576" | bc)
+# Converting sizeSDCARD to integer, so as to use in conditional statement, 
+# if any card is detected it will go inside 'else' statement
 if [ $(echo $sizeSDCARD |cut -f 1 -d '.') -eq 0 ]
 then
    zenity --info --title "ddMaker info"\
    --text "No media found, please check and restart application"
    exit 0
 else
-    # 
     zenity --question --title "ddMaker   Step 3 of 4"\
     --text "A device of $sizeSDCARD GB is detected, the size will be less \
 than actual size of your device. Would you like to continue? \
 Press 'YES' to continue or 'NO' to quit !"
-    # If 'NO' is selected then exit
+    # If 'NO' is selected in zenity dialog then exit
     if [ $? -eq 1 ]
     then
         exit 0
@@ -148,15 +144,47 @@ fi
 
 
 function ddWrite() {
+# Second level of verification. 
+# In first level we found the total disk size with and without
+# our drive(sdcard), and determined exact size of it.
+
+# In 2nd level, we will find the latest device attached to machine and try to
+# cross verify its size with the difference obtained in level 1.     
+
+# In third level, we will limit size of disk size, so to 
+# prevent user who accidently use this tool with ext hard disk
+
 # Now as we know that some new device is detected, let's find out the node     
-sdcardPath=$(ls /dev/sd* | tail -n 1 | cut -c -8)
+sdcardPath=$(echo $password | sudo -S fdisk -l|grep ^Disk\ /dev/sd | tail -1\
+            | awk {'print $2'} | cut -c -8)
+# Cross verify the device node with the size of the disk detected
+sizeLatestDeviceKbytes=$(echo $(sudo fdisk -l|grep ^Disk\ /dev/sd | tail -1 |\
+    awk {'print $5'})/1024 | bc)
+if [ $sizeSDCARDKbytes -ne $sizeLatestDeviceKbytes ]
+then
+    zenity --info \
+           --title "ddMaker info"\
+           --text "Device mismatch, please try again !"
+    exit 0
+else
+    if [ $sizeSDCARDKbytes -gt 32000000 ]
+    then        
+    zenity --info \
+           --title "ddMaker info"\
+           --text "Device detected is more than 32 GB, its just a security \
+feature to enable user not to accidently 'dd' to their external hard drives, \
+you can override this limit by changing  the 'if' statement of\
+ddWrite() function. You can find this bash script at /usr/bin/ddWrite"
+    exit 0
+    fi
+fi    
 # This will return the absolute path of the file you want dd
 ddfilePath=$(zenity --title "Select your file" --file-selection)
 # If file selection is cancelled, then quit application
 if [ $? -eq 1 ]
 then 
     exit 0
-fi    
+fi   
 # Unmounting newly connected device(s), assuming max 9 partitions
 umount $sdcardPath[1-9] &> /dev/null
 sleep 1
@@ -179,38 +207,47 @@ function progressBar() {
 # overwriting the existing value of device(sdcard) with fdisk output for
 # accurate results and converting to GB
 sizeSDCARD=$(echo "scale=2;$(echo $password | sudo -S fdisk -l\
-            |grep ^Disk\ /dev/sd | tail -1 | awk {'print $5'})/1073741824" | bc)
+|grep ^Disk\ /dev/sd | tail -1 | awk {'print $5'})/1073741824" | bc)
+
 # Key command, this will spit the size of disk copied in ddStatus file 
 # mentioned in ddWrite function 
-echo $password | sudo -S kill -USR1 `pgrep ^dd$` &> /dev/null
+echo $password | sudo -S kill -USR1 `pidof dd` &> /dev/null
 # Checking the return status of above command, 1 is failed, 0 is success
 #------------------------------------------------------------------------------
 while [ $? -eq 0 ]
 do 
+    # To increase the frequency of progress bar update, reduce the sleep time         
+    sleep 5
     # Parsing the content of .ddStatus file to find the percentage 
     # of completion
     echo "$(val=$(cat .ddStatus | tail -n 1 | awk '{print$1}');\
          echo "scale=2;$val/1073741824/$sizeSDCARD*100" | bc | cut -d . -f 1)"
-    # To increase the frequency of progress bar update, reduce the sleep time         
-    sleep 10
-    # This will check whether dd process is still running or not, if it returns
-    # 1 the while loop will fail and program will end
-    echo $password | sudo -S kill -USR1 `pgrep ^dd$` &> /dev/null
+    # Below will check whether dd process is running or not, if it returns
+    # code is 1 the while loop will terminate 
+    echo $password | sudo -S kill -USR1 `pidof dd` &> /dev/null
 done
 #------------------------------------------------------------------------------
     zenity --info --title "ddMaker info"\
            --text "Your device is ready, press OK on both dialog box to exit"    
     notify-send "Job successfully completed by ddMaker"
+    # Forget password, clear the variable & remove .ddStatus file
+    sudo -K; rm .ddStatus
+    password=''
     exit 0
 ) | zenity --progress \
            --title="dd in progress" \
            --text="Preparing bootable GNU/Linux sdcard,\
-for a 8GB card it may take 35 minutes ..."
-           --percentage=0 
-# Forget password, clear the variable & remove .ddStatus file
-sudo -K
-password=''
-rm .ddStatus
+for a 8GB card it may take 35 minutes ..."\
+           --percentage=0\
+           --auto-close
+    # If 'NO' is selected in progressbar then kill the underlying dd process
+    if [ $? -eq 1 ]
+    then
+        echo $password | sudo -S kill -INT `pidof dd` &> /dev/null
+        sudo -K; rm .ddStatus
+        password=''
+        exit 0
+    fi        
 }
 
 
