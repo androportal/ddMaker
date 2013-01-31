@@ -228,16 +228,15 @@ do
 done
 #------------------------------------------------------------------------------
     zenity --info --title "ddMaker info"\
-           --text "Your device is ready, press OK on both dialog box to exit"    
+           --text "Your device is ready, press OK to exit"    
     notify-send "Job successfully completed by ddMaker"
     # Forget password, clear the variable & remove .ddStatus file
     sudo -K; rm .ddStatus
     password=''
     exit 0
 ) | zenity --progress \
-           --title="dd in progress" \
-           --text="Preparing bootable GNU/Linux sdcard,\
-for a 8GB card it may take 35 minutes ..."\
+           --title="ddMaker   Step 4 of 4" \
+           --text="Performing dd, for a 8GB card it may take 35 minutes ..."\
            --percentage=0\
            --auto-close
     # If 'NO' is selected in progressbar then kill the underlying dd process
@@ -246,6 +245,9 @@ for a 8GB card it may take 35 minutes ..."\
         echo $password | sudo -S kill -INT `pidof dd` &> /dev/null
         sudo -K; rm .ddStatus
         password=''
+        zenity --info --title "ddMaker info"\
+               --text "dd process is cancelled, you may have to format the \
+drive to use it again!"
         exit 0
     fi        
 }
