@@ -164,14 +164,14 @@ if [ $sizeSDCARDKbytes -ne $sizeLatestDeviceKbytes ]
 then
     zenity --info \
            --title "ddMaker info"\
-           --text "Device mismatch, please try again !"
+           --text "Not the right device, please try again !"
     exit 0
 else
-    if [ $sizeSDCARDKbytes -gt 32000000 ]
+    if [ $sizeSDCARDKbytes -gt 16000000 ]
     then        
     zenity --info \
            --title "ddMaker info"\
-           --text "Device detected is more than 32 GB, its just a security \
+           --text "Device detected is more than 16 GB, its just a security \
 feature to enable user not to accidently 'dd' to their external hard drives, \
 you can override this limit by changing  the 'if' statement of\
 ddWrite() function. You can find this bash script at /usr/bin/ddWrite"
@@ -187,9 +187,10 @@ then
 fi   
 # Unmounting newly connected device(s), assuming max 9 partitions
 umount $sdcardPath[1-9] &> /dev/null
-sleep 1
+sleep 2
 # The main dd process
 echo $password | sudo -S dd if=$ddfilePath of=$sdcardPath bs=4096 2>.ddStatus &
+sleep 2
 if [ $? -eq 1 ]
 then
     zenity --info --title "ddMaker info"\
@@ -204,14 +205,7 @@ fi
 
 function progressBar() {
 (
-# overwriting the existing value of device(sdcard) with fdisk output for
-# accurate results and converting to GB
-sizeSDCARD=$(echo "scale=2;$(echo $password | sudo -S fdisk -l\
-|grep ^Disk\ /dev/sd | tail -1 | awk {'print $5'})/1073741824" | bc)
-
-# Key command, this will spit the size of disk copied in ddStatus file 
-# mentioned in ddWrite function 
-echo $password | sudo -S kill -USR1 `pidof dd` &> /dev/null
+echo $password | sudo -S kill -USR1 `pidof dd`
 # Checking the return status of above command, 1 is failed, 0 is success
 #------------------------------------------------------------------------------
 while [ $? -eq 0 ]
