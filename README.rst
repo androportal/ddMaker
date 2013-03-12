@@ -1,6 +1,8 @@
 README
 ======
 
+DOWNLOAD `ddmaker-1.0.1.all.deb <http://www.it.iitb.ac.in/AakashApps/repo/GNU-Linux-on-Aakash/ddmaker-1.0.1.all.deb>`_ file for debian/Ubuntu/Mint and other compatible distros.
+
 What is ddMaker
 ---------------
 
