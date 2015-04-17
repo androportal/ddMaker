@@ -121,7 +121,7 @@ sizeSDCARDKbytes=$(($sizeofDiskAfterSDCARD - $sizeofDiskBeforeSDCARD))
 sizeSDCARD=$(echo "scale=2;$sizeSDCARDKbytes/1048576" | bc)
 # Converting sizeSDCARD to integer, so as to use in conditional statement, 
 # if any card is detected it will go inside 'else' statement
-if [ $(echo $sizeSDCARD |cut -f 1 -d '.') -eq 0 ]
+if [ $(echo $sizeSDCARD |cut -f 1 -d '.') -le 0 ]
 then
    zenity --info --title "ddMaker info"\
    --text "No media found, please check and restart application"
